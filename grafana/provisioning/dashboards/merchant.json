@@ -1,0 +1,186 @@
+{
+  "uid": "merchant-live",
+  "title": "DTC Merchant — Live",
+  "tags": ["shopify", "merchant"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "GMV (active orders)",
+      "type": "stat",
+      "datasource": {"type": "postgres", "uid": "PostgreSQL"},
+      "gridPos": {"h": 6, "w": 6, "x": 0, "y": 0},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "color": {"mode": "thresholds"},
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{"color": "green", "value": null}]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "postgres", "uid": "PostgreSQL"},
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COALESCE(SUM(total_price), 0) AS gmv FROM orders WHERE cancelled_at IS NULL"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Orders (active)",
+      "type": "stat",
+      "datasource": {"type": "postgres", "uid": "PostgreSQL"},
+      "gridPos": {"h": 6, "w": 6, "x": 6, "y": 0},
+      "fieldConfig": {
+        "defaults": {"unit": "short", "color": {"mode": "thresholds"}}
+      },
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "colorMode": "value",
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "postgres", "uid": "PostgreSQL"},
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(*) AS active_orders FROM orders WHERE cancelled_at IS NULL"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Cancellation rate",
+      "type": "gauge",
+      "datasource": {"type": "postgres", "uid": "PostgreSQL"},
+      "gridPos": {"h": 6, "w": 6, "x": 12, "y": 0},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 5},
+              {"color": "red", "value": 15}
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "postgres", "uid": "PostgreSQL"},
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT ROUND(100.0 * COUNT(*) FILTER (WHERE cancelled_at IS NOT NULL) / NULLIF(COUNT(*), 0), 2) AS cancel_rate FROM orders"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Reconciliation share",
+      "type": "stat",
+      "datasource": {"type": "postgres", "uid": "PostgreSQL"},
+      "gridPos": {"h": 6, "w": 6, "x": 18, "y": 0},
+      "fieldConfig": {
+        "defaults": {"unit": "short"}
+      },
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "colorMode": "value",
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "postgres", "uid": "PostgreSQL"},
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(*) FILTER (WHERE source = 'reconciliation') AS reconciled FROM orders"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Orders over time",
+      "type": "timeseries",
+      "datasource": {"type": "postgres", "uid": "PostgreSQL"},
+      "gridPos": {"h": 9, "w": 12, "x": 0, "y": 6},
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "fillOpacity": 20,
+            "showPoints": "never"
+          },
+          "unit": "short"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "postgres", "uid": "PostgreSQL"},
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT date_trunc('minute', created_at) AS time, COUNT(*) AS orders FROM orders WHERE $__timeFilter(created_at) GROUP BY 1 ORDER BY 1"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Top SKUs (active orders)",
+      "type": "barchart",
+      "datasource": {"type": "postgres", "uid": "PostgreSQL"},
+      "gridPos": {"h": 9, "w": 12, "x": 12, "y": 6},
+      "fieldConfig": {
+        "defaults": {"unit": "short"}
+      },
+      "options": {
+        "orientation": "horizontal",
+        "xTickLabelRotation": 0,
+        "showValue": "auto",
+        "stacking": "none",
+        "groupWidth": 0.7,
+        "barWidth": 0.97,
+        "legend": {"showLegend": false}
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "postgres", "uid": "PostgreSQL"},
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT oi.sku, SUM(oi.quantity) AS units FROM order_items oi JOIN orders o ON o.order_id = oi.order_id WHERE o.cancelled_at IS NULL AND oi.sku IS NOT NULL GROUP BY oi.sku ORDER BY units DESC LIMIT 10"
+        }
+      ]
+    }
+  ]
+}
