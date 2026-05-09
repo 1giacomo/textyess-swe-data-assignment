@@ -5,13 +5,22 @@ Each test wraps its work in a transaction that is rolled back at teardown,
 so tests are isolated and parallel-safe.
 """
 
+import asyncio
 import json
+import os
 from datetime import datetime, timedelta, timezone
 
+import asyncpg
 import pytest
+import pytest_asyncio
 
-from shopify_app.modules.ingest import record_raw_event, upsert_order
+from shopify_app.modules.ingest import process_webhook, record_raw_event, upsert_order
 from shopify_app.modules.models import parse_order
+
+CONCURRENCY_DSN = os.environ.get(
+    "TEST_DATABASE_URL",
+    "postgresql://postgres:postgres@localhost:5433/shopify",
+)
 
 
 def make_payload(
@@ -239,3 +248,57 @@ async def test_record_raw_event_returns_true_on_first_insert(conn):
         "SELECT payload FROM raw_events WHERE webhook_id = 'wh-fresh'"
     )
     assert json.loads(stored)["id"] == 7001
+
+
+@pytest_asyncio.fixture
+async def concurrent_pool():
+    """Real pool for the concurrency test — process_webhook commits, can't roll back."""
+    pool = await asyncpg.create_pool(dsn=CONCURRENCY_DSN, min_size=4, max_size=20)
+    yield pool
+    await pool.close()
+
+
+@pytest.mark.asyncio
+async def test_concurrent_duplicate_webhooks_insert_once(concurrent_pool):
+    """20 parallel process_webhook calls with the same webhook_id.
+
+    The PK on raw_events.webhook_id is the serialization point; only one
+    INSERT may win. This proves the dedup is race-free at concurrency.
+    """
+    webhook_id = "concurrent-dedup-test-9999999"
+    order_id = 9999999
+    updated_at = datetime.now(timezone.utc)
+    payload = make_payload(order_id=order_id, updated_at=updated_at)
+
+    try:
+        results = await asyncio.gather(
+            *[
+                process_webhook(
+                    concurrent_pool,
+                    webhook_id,
+                    "orders/create",
+                    "shop.myshopify.com",
+                    payload,
+                )
+                for _ in range(20)
+            ]
+        )
+
+        # Exactly one call should report "newly processed".
+        assert sum(1 for r in results if r is True) == 1
+        assert sum(1 for r in results if r is False) == 19
+
+        async with concurrent_pool.acquire() as c:
+            raw_count = await c.fetchval(
+                "SELECT COUNT(*) FROM raw_events WHERE webhook_id = $1", webhook_id
+            )
+            order_count = await c.fetchval(
+                "SELECT COUNT(*) FROM orders WHERE order_id = $1", order_id
+            )
+        assert raw_count == 1
+        assert order_count == 1
+    finally:
+        async with concurrent_pool.acquire() as c:
+            await c.execute("DELETE FROM order_items WHERE order_id = $1", order_id)
+            await c.execute("DELETE FROM orders WHERE order_id = $1", order_id)
+            await c.execute("DELETE FROM raw_events WHERE webhook_id = $1", webhook_id)

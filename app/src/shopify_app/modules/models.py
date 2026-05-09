@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 
@@ -72,6 +72,6 @@ def parse_order(payload: dict, shop_domain: str) -> OrderRecord:
         cancel_reason=payload.get("cancel_reason"),
         cancelled_at=_parse_dt(payload.get("cancelled_at")),
         created_at=_parse_dt(payload.get("created_at")),
-        updated_at=_parse_dt(payload.get("updated_at")) or datetime.now(),
+        updated_at=_parse_dt(payload.get("updated_at")) or datetime.now(timezone.utc),
         line_items=items,
     )

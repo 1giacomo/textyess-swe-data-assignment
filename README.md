@@ -12,7 +12,7 @@ The design rationale is in [`WRITEUP.md`](./WRITEUP.md).
 | ---------------- | ----------------------------------------------------- |
 | Webhook receiver | Python 3.11 + FastAPI + asyncpg                       |
 | Storage          | PostgreSQL 16 (raw events JSONB + materialized state) |
-| Reconciliation   | APScheduler (in-process, every 30s)                   |
+| Reconciliation   | APScheduler (in-process, every 10s)                   |
 | Dashboard        | Grafana 11 (auto-provisioned datasource + dashboard)  |
 | Orchestration    | Docker Compose                                        |
 
@@ -69,8 +69,8 @@ pnpm simulate --url http://localhost:3000/webhooks \
 ```
 
 Watch the dashboard at `http://localhost:3002` while it runs. Reconciliation
-fires every 30 seconds; for Scenario 4, wait ~30s after the simulator finishes
-to see the dropped orders backfill into the dashboard.
+fires every 10 seconds; for Scenario 4 you can watch dropped orders flow into
+the DB in real time as the simulator runs.
 
 ## Inspect the database
 

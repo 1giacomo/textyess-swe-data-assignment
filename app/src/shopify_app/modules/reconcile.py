@@ -46,10 +46,15 @@ async def _last_seen(conn: asyncpg.Connection) -> datetime:
 
 
 def _build_initial_url(updated_at_min: datetime, base_url: str, api_version: str) -> str:
+    # Match the simulator's `Date.toISOString()` format ("...Z" suffix).
+    # The backfill server compares timestamps as strings, so an "+00:00"
+    # suffix from Python's default isoformat would sort below "Z" and
+    # under-restrict the filter.
+    iso = updated_at_min.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
     return (
         f"{base_url.rstrip('/')}/admin/api/{api_version}/orders.json"
         f"?limit={PAGE_LIMIT}"
-        f"&updated_at_min={updated_at_min.isoformat()}"
+        f"&updated_at_min={iso}"
     )
 
 

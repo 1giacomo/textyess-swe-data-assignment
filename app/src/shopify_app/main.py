@@ -28,12 +28,16 @@ async def lifespan(app: FastAPI):
     app.state.http = httpx.AsyncClient()
     logger.info("DB pool + HTTP client ready")
 
+    async def _scheduled_reconcile() -> None:
+        # Read pool/client from app.state at execution time so reconnect
+        # logic on the lifespan can swap them out safely.
+        await reconcile_once(pool=app.state.pool, client=app.state.http)
+
     scheduler = AsyncIOScheduler()
     scheduler.add_job(
-        reconcile_once,
+        _scheduled_reconcile,
         trigger="interval",
         seconds=config.RECONCILE_INTERVAL_SECONDS,
-        kwargs={"pool": app.state.pool, "client": app.state.http},
         max_instances=1,
         coalesce=True,
     )
