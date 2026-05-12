@@ -20,7 +20,9 @@ CREATE TABLE orders (
     cancelled_at       TIMESTAMPTZ,
     created_at         TIMESTAMPTZ,
     updated_at         TIMESTAMPTZ NOT NULL,
-    source             TEXT NOT NULL DEFAULT 'webhook'
+    source             TEXT NOT NULL DEFAULT 'webhook',
+    shipping_latitude  DOUBLE PRECISION,
+    shipping_longitude DOUBLE PRECISION
 );
 
 CREATE TABLE order_items (

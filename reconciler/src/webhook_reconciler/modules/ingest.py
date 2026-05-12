@@ -52,8 +52,9 @@ async def upsert_order(
         """
         INSERT INTO orders (
             order_id, shop_domain, financial_status, fulfillment_status,
-            total_price, cancel_reason, cancelled_at, created_at, updated_at, source
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+            total_price, cancel_reason, cancelled_at, created_at, updated_at, source,
+            shipping_latitude, shipping_longitude
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
         ON CONFLICT (order_id) DO UPDATE SET
             financial_status   = EXCLUDED.financial_status,
             fulfillment_status = EXCLUDED.fulfillment_status,
@@ -61,7 +62,9 @@ async def upsert_order(
             cancel_reason      = EXCLUDED.cancel_reason,
             cancelled_at       = EXCLUDED.cancelled_at,
             updated_at         = EXCLUDED.updated_at,
-            source             = EXCLUDED.source
+            source             = EXCLUDED.source,
+            shipping_latitude  = EXCLUDED.shipping_latitude,
+            shipping_longitude = EXCLUDED.shipping_longitude
         WHERE orders.updated_at < EXCLUDED.updated_at
         RETURNING order_id
         """,
@@ -75,6 +78,8 @@ async def upsert_order(
         order.created_at,
         order.updated_at,
         source,
+        order.shipping_latitude,
+        order.shipping_longitude,
     )
 
     # If the upsert was a no-op (stale event lost the WHERE check), the
