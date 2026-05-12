@@ -4,7 +4,7 @@
   "tags": ["shopify", "merchant"],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "refresh": "5s",
   "time": {
     "from": "now-1h",
@@ -20,11 +20,7 @@
       "fieldConfig": {
         "defaults": {
           "unit": "currencyUSD",
-          "color": {"mode": "thresholds"},
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [{"color": "green", "value": null}]
-          }
+          "color": {"mode": "fixed", "fixedColor": "#5C53F8"}
         }
       },
       "options": {
@@ -50,7 +46,10 @@
       "datasource": {"type": "postgres", "uid": "PostgreSQL"},
       "gridPos": {"h": 6, "w": 6, "x": 6, "y": 0},
       "fieldConfig": {
-        "defaults": {"unit": "short", "color": {"mode": "thresholds"}}
+        "defaults": {
+          "unit": "short",
+          "color": {"mode": "fixed", "fixedColor": "#5C53F8"}
+        }
       },
       "options": {
         "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
@@ -78,12 +77,13 @@
           "unit": "percent",
           "min": 0,
           "max": 100,
+          "color": {"mode": "thresholds"},
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              {"color": "green", "value": null},
-              {"color": "yellow", "value": 5},
-              {"color": "red", "value": 15}
+              {"color": "#22C55E", "value": null},
+              {"color": "#F59E0B", "value": 5},
+              {"color": "#EF4444", "value": 15}
             ]
           }
         }
@@ -110,7 +110,10 @@
       "datasource": {"type": "postgres", "uid": "PostgreSQL"},
       "gridPos": {"h": 6, "w": 6, "x": 18, "y": 0},
       "fieldConfig": {
-        "defaults": {"unit": "short"}
+        "defaults": {
+          "unit": "short",
+          "color": {"mode": "fixed", "fixedColor": "#8B82FB"}
+        }
       },
       "options": {
         "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
@@ -138,11 +141,18 @@
           "custom": {
             "drawStyle": "line",
             "lineInterpolation": "smooth",
+            "lineWidth": 2,
             "fillOpacity": 20,
-            "showPoints": "never"
+            "showPoints": "never",
+            "gradientMode": "opacity"
           },
-          "unit": "short"
+          "unit": "short",
+          "color": {"mode": "fixed", "fixedColor": "#5C53F8"}
         }
+      },
+      "options": {
+        "legend": {"showLegend": false},
+        "tooltip": {"mode": "single", "sort": "none"}
       },
       "targets": [
         {
@@ -161,7 +171,10 @@
       "datasource": {"type": "postgres", "uid": "PostgreSQL"},
       "gridPos": {"h": 9, "w": 12, "x": 12, "y": 6},
       "fieldConfig": {
-        "defaults": {"unit": "short"}
+        "defaults": {
+          "unit": "short",
+          "color": {"mode": "fixed", "fixedColor": "#5C53F8"}
+        }
       },
       "options": {
         "orientation": "horizontal",
@@ -179,6 +192,61 @@
           "format": "table",
           "rawQuery": true,
           "rawSql": "SELECT oi.sku, SUM(oi.quantity) AS units FROM order_items oi JOIN orders o ON o.order_id = oi.order_id WHERE o.cancelled_at IS NULL AND oi.sku IS NOT NULL GROUP BY oi.sku ORDER BY units DESC LIMIT 10"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Live order map (shipping destinations)",
+      "type": "geomap",
+      "datasource": {"type": "postgres", "uid": "PostgreSQL"},
+      "gridPos": {"h": 12, "w": 24, "x": 0, "y": 15},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "fixed", "fixedColor": "#5C53F8"},
+          "custom": {
+            "hideFrom": {"legend": false, "tooltip": false, "viz": false}
+          }
+        }
+      },
+      "options": {
+        "view": {"id": "fit", "lat": 39, "lon": -98, "zoom": 3},
+        "controls": {
+          "showZoom": true,
+          "mouseWheelZoom": true,
+          "showAttribution": true,
+          "showScale": false,
+          "showMeasure": false,
+          "showDebug": false
+        },
+        "basemap": {"type": "default", "name": "Basemap", "config": {}},
+        "layers": [
+          {
+            "name": "Active orders",
+            "type": "markers",
+            "location": {"mode": "auto"},
+            "tooltip": true,
+            "config": {
+              "style": {
+                "size": {"fixed": 5, "min": 4, "max": 18, "field": "orders"},
+                "color": {"fixed": "#5C53F8"},
+                "opacity": 0.7,
+                "symbol": {"fixed": "img/icons/marker/circle.svg", "mode": "fixed"},
+                "textConfig": {"fontSize": 12, "textAlign": "center", "textBaseline": "middle", "offsetX": 0, "offsetY": 0}
+              },
+              "showLegend": true
+            }
+          }
+        ],
+        "tooltip": {"mode": "details"}
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "postgres", "uid": "PostgreSQL"},
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH order_locations AS (SELECT DISTINCT ON ((payload->>'id')::bigint) (payload->>'id')::bigint AS order_id, ((payload->'shipping_address'->>'latitude'))::float AS lat, ((payload->'shipping_address'->>'longitude'))::float AS lng FROM raw_events WHERE topic LIKE 'orders/%' AND payload->'shipping_address'->>'latitude' IS NOT NULL ORDER BY (payload->>'id')::bigint, received_at ASC) SELECT ol.lat AS latitude, ol.lng AS longitude, COUNT(*) AS orders, SUM(o.total_price)::float AS gmv FROM orders o JOIN order_locations ol ON ol.order_id = o.order_id WHERE o.cancelled_at IS NULL GROUP BY ol.lat, ol.lng"
         }
       ]
     }
