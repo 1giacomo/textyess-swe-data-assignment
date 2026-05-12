@@ -20,11 +20,11 @@ export function initGeomap(el: HTMLElement) {
       zoom: 1.2,
       center: [10, 25],
       itemStyle: {
-        areaColor: "#1a1a2e",
+        areaColor: "#f1f1f5",
         borderColor: PALETTE.border,
         borderWidth: 0.5,
       },
-      emphasis: { itemStyle: { areaColor: "#23233a" }, label: { show: false } },
+      emphasis: { itemStyle: { areaColor: "#e7e6f8" }, label: { show: false } },
       label: { show: false },
     },
     series: [
