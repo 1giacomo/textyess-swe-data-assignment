@@ -8,13 +8,14 @@ The design rationale is in [`WRITEUP.md`](./WRITEUP.md).
 
 ## Stack
 
-| Layer            | Choice                                                |
-| ---------------- | ----------------------------------------------------- |
-| Webhook receiver | Python 3.11 + FastAPI + asyncpg                       |
-| Storage          | PostgreSQL 16 (raw events JSONB + materialized state) |
-| Reconciliation   | APScheduler (in-process, every 10s)                   |
-| Dashboard        | Grafana 11 (auto-provisioned datasource + dashboard)  |
-| Orchestration    | Docker Compose                                        |
+| Layer             | Choice                                                |
+| ----------------- | ----------------------------------------------------- |
+| Webhook receiver  | Python 3.11 + FastAPI + asyncpg                       |
+| Storage           | PostgreSQL 16 (raw events JSONB + materialized state) |
+| Reconciliation    | APScheduler (in-process, every 10s)                   |
+| Dashboard (ref.)  | Grafana 11 (auto-provisioned datasource + dashboard)  |
+| Dashboard (main)  | Custom TS + Apache ECharts + Fastify (`dashboard/`)   |
+| Orchestration     | Docker Compose                                        |
 
 ## Bring it up (one command)
 
@@ -26,14 +27,22 @@ That launches:
 
 - **PostgreSQL** on `localhost:5433` (host port; container uses 5432)
 - **FastAPI** on `localhost:3000` — `POST /webhooks` accepts Shopify deliveries
-- **Grafana** on `localhost:3002` — anonymous-admin enabled, dashboard auto-loaded
+- **Custom dashboard** on `localhost:3003` — TypeScript + Apache ECharts, polls every 5s
+- **Grafana** on `localhost:3002` — kept as a reference dashboard for side-by-side comparison
 
 Verify everything is alive:
 
 ```bash
 curl http://localhost:3000/health        # → {"status":"ok"}
-open http://localhost:3002               # Grafana → "DTC Merchant — Live" dashboard
+curl http://localhost:3003/api/health    # → {"data":{"status":"ok"}}
+open http://localhost:3003               # custom dashboard (primary)
+open http://localhost:3002               # Grafana (reference)
 ```
+
+> **Schema migration note**: this branch adds `shipping_latitude` /
+> `shipping_longitude` columns to `orders` so the geomap panel doesn't have
+> to JSONB-extract on the hot path. `db/init.sql` only runs on a fresh volume,
+> so if you already ran an older version: `docker compose down -v && docker compose up -d --build`.
 
 ## Run the simulator against it
 
@@ -68,9 +77,29 @@ pnpm simulate --url http://localhost:3000/webhooks \
   --backfill-port 3001
 ```
 
-Watch the dashboard at `http://localhost:3002` while it runs. Reconciliation
-fires every 10 seconds; for Scenario 4 you can watch dropped orders flow into
-the DB in real time as the simulator runs.
+Watch the custom dashboard at `http://localhost:3003` while it runs (or the
+Grafana reference at `http://localhost:3002`). Reconciliation fires every 10
+seconds; for Scenario 4 you can watch dropped orders flow into the DB in real
+time, and the "Reconciliation backfill" panel in the Operations section will
+light up.
+
+### Custom dashboard — local dev (optional)
+
+Inside Docker the dashboard rebuilds when you `docker compose up --build`. For
+HMR while iterating on the frontend:
+
+```bash
+cd dashboard
+pnpm install
+pnpm dev          # Vite on :5173 (with /api proxy) + Fastify on :3003
+```
+
+Or build + run the production bundle locally:
+
+```bash
+cd dashboard
+pnpm build && DATABASE_URL=postgresql://postgres:postgres@localhost:5433/shopify pnpm start
+```
 
 ## Inspect the database
 
@@ -114,9 +143,10 @@ docker compose down -v   # -v drops the postgres + grafana volumes
 
 ```
 reconciler/           FastAPI service: webhook ingestion + scheduled backfill reconciliation
+dashboard/            Custom merchant dashboard (TypeScript + Apache ECharts + Fastify) on :3003
 db/init.sql           Schema applied on first Postgres startup
-docker-compose.yml    All three services + healthchecks + volumes
-grafana/provisioning/ Auto-provisioned datasource + dashboard
+docker-compose.yml    All four services + healthchecks + volumes
+grafana/provisioning/ Auto-provisioned datasource + dashboard (reference, :3002)
 simulator/            Provided Shopify webhook simulator (read-only)
 docs/superpowers/     Design spec
 ASSIGNMENT.md         Original assignment brief
