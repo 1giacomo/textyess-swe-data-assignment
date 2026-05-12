@@ -1,5 +1,5 @@
 [project]
-name = "shopify-app"
+name = "webhook-reconciler"
 version = "0.1.0"
 description = "Shopify webhook ingestion + reconciliation backend"
 requires-python = ">=3.11"
@@ -19,7 +19,7 @@ dev = [
 ]
 
 [project.scripts]
-shopify-app = "shopify_app.main:run"
+webhook-reconciler = "webhook_reconciler.main:run"
 
 [build-system]
 requires = ["setuptools>=64"]
@@ -27,7 +27,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["shopify_app*"]
+include = ["webhook_reconciler*"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

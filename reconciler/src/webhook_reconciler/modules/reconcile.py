@@ -19,9 +19,9 @@ from typing import Iterable
 import asyncpg
 import httpx
 
-from shopify_app.modules.ingest import upsert_order
-from shopify_app.modules.models import parse_order
-from shopify_app.utils import config
+from webhook_reconciler.modules.ingest import upsert_order
+from webhook_reconciler.modules.models import parse_order
+from webhook_reconciler.utils import config
 
 logger = logging.getLogger(__name__)
 

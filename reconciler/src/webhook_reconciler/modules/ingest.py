@@ -4,7 +4,7 @@ from typing import Literal
 
 import asyncpg
 
-from shopify_app.modules.models import OrderRecord, parse_order
+from webhook_reconciler.modules.models import OrderRecord, parse_order
 
 logger = logging.getLogger(__name__)
 

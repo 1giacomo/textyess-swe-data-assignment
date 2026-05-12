@@ -14,8 +14,8 @@ import asyncpg
 import pytest
 import pytest_asyncio
 
-from shopify_app.modules.ingest import process_webhook, record_raw_event, upsert_order
-from shopify_app.modules.models import parse_order
+from webhook_reconciler.modules.ingest import process_webhook, record_raw_event, upsert_order
+from webhook_reconciler.modules.models import parse_order
 
 CONCURRENCY_DSN = os.environ.get(
     "TEST_DATABASE_URL",

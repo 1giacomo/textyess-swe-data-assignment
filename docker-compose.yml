@@ -16,8 +16,8 @@ services:
       timeout: 5s
       retries: 10
 
-  app:
-    build: ./app
+  reconciler:
+    build: ./reconciler
     ports:
       - "3000:3000"
     environment:

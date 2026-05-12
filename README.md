@@ -94,11 +94,11 @@ SELECT COUNT(*) FROM orders;            -- our state
 
 The Python test suite (idempotency, out-of-order handling, cancellation
 detection, line-item replacement, reconciliation pagination) runs inside the
-app container against the live Postgres:
+reconciler container against the live Postgres:
 
 ```bash
 docker exec -e TEST_DATABASE_URL=postgresql://postgres:postgres@postgres:5432/shopify \
-  textyess-swe-data-assignment-app-1 \
+  textyess-swe-data-assignment-reconciler-1 \
   python -m pytest tests/ -v
 ```
 
@@ -113,7 +113,7 @@ docker compose down -v   # -v drops the postgres + grafana volumes
 ## Project layout
 
 ```
-app/                  FastAPI service (Dockerfile, requirements, source, tests)
+reconciler/           FastAPI service: webhook ingestion + scheduled backfill reconciliation
 db/init.sql           Schema applied on first Postgres startup
 docker-compose.yml    All three services + healthchecks + volumes
 grafana/provisioning/ Auto-provisioned datasource + dashboard
@@ -134,10 +134,10 @@ WRITEUP.md            Design rationale (data model, idempotency, reconciliation,
 ## Notes
 
 - **Postgres host port** is `5433` (not the default `5432`) to avoid conflict
-  with a locally-installed Postgres. App-to-DB traffic uses the Docker
+  with a locally-installed Postgres. Reconciler-to-DB traffic uses the Docker
   network and the standard `5432`.
 - **`host.docker.internal`** is mapped via `extra_hosts: host-gateway` so the
-  app container can reach the simulator's backfill server running on the host
-  at port 3001 — works on macOS, Windows, and Linux Docker Desktop.
+  reconciler container can reach the simulator's backfill server running on the
+  host at port 3001 — works on macOS, Windows, and Linux Docker Desktop.
 - **Grafana anonymous-admin** is enabled for ease of grading; lock it down
   before any real deployment.

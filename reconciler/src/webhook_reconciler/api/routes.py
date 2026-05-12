@@ -2,8 +2,8 @@
 
 from fastapi import APIRouter, Header, HTTPException, Request
 
-from shopify_app.modules.ingest import process_webhook
-from shopify_app.modules.reconcile import reconcile_once
+from webhook_reconciler.modules.ingest import process_webhook
+from webhook_reconciler.modules.reconcile import reconcile_once
 
 router = APIRouter()
 
