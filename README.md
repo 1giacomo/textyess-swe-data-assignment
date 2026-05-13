@@ -8,14 +8,14 @@ The design rationale is in [`WRITEUP.md`](./WRITEUP.md).
 
 ## Stack
 
-| Layer             | Choice                                                |
-| ----------------- | ----------------------------------------------------- |
-| Webhook receiver  | Python 3.11 + FastAPI + asyncpg                       |
-| Storage           | PostgreSQL 16 (raw events JSONB + materialized state) |
-| Reconciliation    | APScheduler (in-process, every 10s)                   |
-| Dashboard (ref.)  | Grafana 11 (auto-provisioned datasource + dashboard)  |
-| Dashboard (main)  | Custom TS + Apache ECharts + Fastify (`dashboard/`)   |
-| Orchestration     | Docker Compose                                        |
+| Layer            | Choice                                                |
+| ---------------- | ----------------------------------------------------- |
+| Webhook receiver | Python 3.11 + FastAPI + asyncpg                       |
+| Storage          | PostgreSQL 16 (raw events JSONB + materialized state) |
+| Reconciliation   | APScheduler (in-process, every 10s)                   |
+| Dashboard (ref.) | Grafana 11 (auto-provisioned datasource + dashboard)  |
+| Dashboard (main) | Custom TS + Apache ECharts + Fastify (`dashboard/`)   |
+| Orchestration    | Docker Compose                                        |
 
 ## Bring it up (one command)
 
@@ -30,144 +30,18 @@ That launches:
 - **Custom dashboard** on `localhost:3003` — TypeScript + Apache ECharts, polls every 5s
 - **Grafana** on `localhost:3002` — kept as a reference dashboard for side-by-side comparison
 
-Verify everything is alive:
-
-```bash
-curl http://localhost:3000/health        # → {"status":"ok"}
-curl http://localhost:3003/api/health    # → {"data":{"status":"ok"}}
-open http://localhost:3003               # custom dashboard (primary)
-open http://localhost:3002               # Grafana (reference)
-```
-
-> **Schema migration note**: this branch adds `shipping_latitude` /
-> `shipping_longitude` columns to `orders` so the geomap panel doesn't have
-> to JSONB-extract on the hot path. `db/init.sql` only runs on a fresh volume,
-> so if you already ran an older version: `docker compose down -v && docker compose up -d --build`.
-
 ## Run the simulator against it
 
-The simulator lives in [`./simulator/`](./simulator). Install once:
+The simulator lives in [`./simulator/`](./simulator). Run:
 
 ```bash
-cd simulator && pnpm install
-```
-
-Then run any of the assignment scenarios (point all of them at this server's
-webhook URL, `http://localhost:3000/webhooks`):
-
-```bash
-# Scenario 1 — steady mixed traffic with retries + out-of-order
-pnpm simulate --url http://localhost:3000/webhooks \
-  --rps 10 --duration 120 \
-  --duplicate-rate 0.1 --out-of-order \
-  --update-rate 0.3 --cancel-rate 0.05
-
-# Scenario 2 — burst load
-pnpm simulate --url http://localhost:3000/webhooks \
-  --burst 5000 --concurrency 100
-
-# Scenario 3 — stress workload
-pnpm simulate --url http://localhost:3000/webhooks \
-  --workload stress --inserts 10000 --updates 5000 --cancels 1000 --concurrency 100
-
-# Scenario 4 — reconciliation against the REST backfill API
-pnpm simulate --url http://localhost:3000/webhooks \
-  --rps 10 --duration 60 \
-  --drop-rate 0.1 \
-  --backfill-port 3001
-```
-
-Watch the custom dashboard at `http://localhost:3003` while it runs (or the
-Grafana reference at `http://localhost:3002`). Reconciliation fires every 10
-seconds; for Scenario 4 you can watch dropped orders flow into the DB in real
-time, and the "Reconciliation backfill" panel in the Operations section will
-light up.
-
-### Custom dashboard — local dev (optional)
-
-Inside Docker the dashboard rebuilds when you `docker compose up --build`. For
-HMR while iterating on the frontend:
-
-```bash
-cd dashboard
+cd simulator
 pnpm install
-pnpm dev          # Vite on :5173 (with /api proxy) + Fastify on :3003
+pnpm start --url http://localhost:3000/webhooks --backfill-port 3001
 ```
-
-Or build + run the production bundle locally:
-
-```bash
-cd dashboard
-pnpm build && DATABASE_URL=postgresql://postgres:postgres@localhost:5433/shopify pnpm start
-```
-
-## Inspect the database
-
-```bash
-docker exec -it textyess-swe-data-assignment-postgres-1 psql -U postgres -d shopify
-
--- core counts
-SELECT COUNT(*) FROM raw_events;
-SELECT COUNT(*) FROM orders;
-SELECT COUNT(*) FROM orders WHERE cancelled_at IS NOT NULL;
-SELECT COUNT(*) FROM orders WHERE source = 'reconciliation';
-
--- compare against the REST backfill (Scenario 4)
-SELECT COUNT(*) FROM orders;            -- our state
--- vs:
--- curl -H "X-Shopify-Access-Token: any" \
---      "http://localhost:3001/admin/api/2024-10/orders/count.json"
-```
-
-## Run the tests
-
-The Python test suite (idempotency, out-of-order handling, cancellation
-detection, line-item replacement, reconciliation pagination) runs inside the
-reconciler container against the live Postgres:
-
-```bash
-docker exec -e TEST_DATABASE_URL=postgresql://postgres:postgres@postgres:5432/shopify \
-  textyess-swe-data-assignment-reconciler-1 \
-  python -m pytest tests/ -v
-```
-
-10 tests, ~0.4s.
 
 ## Tear down
 
 ```bash
 docker compose down -v   # -v drops the postgres + grafana volumes
 ```
-
-## Project layout
-
-```
-reconciler/           FastAPI service: webhook ingestion + scheduled backfill reconciliation
-dashboard/            Custom merchant dashboard (TypeScript + Apache ECharts + Fastify) on :3003
-db/init.sql           Schema applied on first Postgres startup
-docker-compose.yml    All four services + healthchecks + volumes
-grafana/provisioning/ Auto-provisioned datasource + dashboard (reference, :3002)
-simulator/            Provided Shopify webhook simulator (read-only)
-docs/superpowers/     Design spec
-ASSIGNMENT.md         Original assignment brief
-WRITEUP.md            Design rationale (data model, idempotency, reconciliation, trade-offs)
-```
-
-## Endpoints
-
-| Method | Path               | Purpose                                 |
-| ------ | ------------------ | --------------------------------------- |
-| `GET`  | `/health`          | Liveness + DB connectivity              |
-| `POST` | `/webhooks`        | Shopify webhook ingestion               |
-| `POST` | `/admin/reconcile` | Manual reconciliation trigger (testing) |
-
-## Notes
-
-- **Postgres host port** is `5433` (not the default `5432`) to avoid conflict
-  with a locally-installed Postgres. Reconciler-to-DB traffic uses the Docker
-  network and the standard `5432`.
-- **`host.docker.internal`** is mapped via `extra_hosts: host-gateway` so the
-  reconciler container can reach the simulator's backfill server running on the
-  host at port 3001 — works on macOS, Windows, and Linux Docker Desktop.
-- **Grafana anonymous-admin** is enabled for ease of grading; lock it down
-  before any real deployment.
