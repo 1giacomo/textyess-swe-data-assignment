@@ -26,6 +26,8 @@ class OrderRecord:
     cancelled_at: datetime | None
     created_at: datetime | None
     updated_at: datetime
+    shipping_latitude: float | None
+    shipping_longitude: float | None
     line_items: list[LineItem]
 
 
@@ -43,6 +45,15 @@ def _parse_decimal(value: Any) -> Decimal | None:
     if value is None or value == "":
         return None
     return Decimal(str(value))
+
+
+def _parse_float(value: Any) -> float | None:
+    if value is None or value == "":
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def parse_order(payload: dict, shop_domain: str) -> OrderRecord:
@@ -63,6 +74,7 @@ def parse_order(payload: dict, shop_domain: str) -> OrderRecord:
         )
         for li in payload.get("line_items", [])
     ]
+    shipping = payload.get("shipping_address") or {}
     return OrderRecord(
         order_id=int(payload["id"]),
         shop_domain=shop_domain,
@@ -73,5 +85,7 @@ def parse_order(payload: dict, shop_domain: str) -> OrderRecord:
         cancelled_at=_parse_dt(payload.get("cancelled_at")),
         created_at=_parse_dt(payload.get("created_at")),
         updated_at=_parse_dt(payload.get("updated_at")) or datetime.now(timezone.utc),
+        shipping_latitude=_parse_float(shipping.get("latitude")),
+        shipping_longitude=_parse_float(shipping.get("longitude")),
         line_items=items,
     )

@@ -16,8 +16,8 @@ services:
       timeout: 5s
       retries: 10
 
-  app:
-    build: ./app
+  reconciler:
+    build: ./reconciler
     ports:
       - "3000:3000"
     environment:
@@ -46,6 +46,22 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+
+  dashboard:
+    build: ./dashboard
+    ports:
+      - "3003:3003"
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/shopify
+      PORT: "3003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3003/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   pgdata:

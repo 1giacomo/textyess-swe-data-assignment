@@ -1,5 +1,38 @@
 # Writeup
 
+## Stack
+
+| Layer            | Choice                                                |
+| ---------------- | ----------------------------------------------------- |
+| Webhook receiver | Python 3.11 + FastAPI + asyncpg                       |
+| Storage          | PostgreSQL 16 (raw events JSONB + materialized state) |
+| Reconciliation   | APScheduler (in-process, every 10s)                   |
+| Dashboard (ref.) | Grafana 11 (auto-provisioned datasource + dashboard)  |
+| Dashboard (main) | Custom TS + Apache ECharts + Fastify (`dashboard/`)   |
+| Orchestration    | Docker Compose                                        |
+
+## Bring it up (one command)
+
+```bash
+docker compose up -d --build
+```
+
+That launches:
+
+- **PostgreSQL** on `localhost:5433` (host port; container uses 5432)
+- **FastAPI** on `localhost:3000` — `POST /webhooks` accepts Shopify deliveries
+- **Custom dashboard** on `localhost:3003` — TypeScript + Apache ECharts, polls every 5s
+- **Grafana** on `localhost:3002` — kept as a reference dashboard for side-by-side comparison
+
+Verify everything is alive:
+
+```bash
+curl http://localhost:3000/health        # → {"status":"ok"}
+curl http://localhost:3003/api/health    # → {"data":{"status":"ok"}}
+open http://localhost:3003               # custom dashboard (primary)
+open http://localhost:3002               # Grafana (reference)
+```
+
 ## Data model
 
 Two layers, each with one job.

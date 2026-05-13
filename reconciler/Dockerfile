@@ -11,4 +11,4 @@ RUN pip install --no-cache-dir ".[dev]"
 
 EXPOSE 3000
 
-CMD ["uvicorn", "shopify_app.main:app", "--host", "0.0.0.0", "--port", "3000"]
+CMD ["uvicorn", "webhook_reconciler.main:app", "--host", "0.0.0.0", "--port", "3000"]

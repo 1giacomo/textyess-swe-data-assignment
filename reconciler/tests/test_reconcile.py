@@ -13,7 +13,7 @@ import asyncpg
 import httpx
 import pytest_asyncio
 
-from shopify_app.modules.reconcile import reconcile_once
+from webhook_reconciler.modules.reconcile import reconcile_once
 
 TEST_DSN = os.environ.get(
     "TEST_DATABASE_URL",

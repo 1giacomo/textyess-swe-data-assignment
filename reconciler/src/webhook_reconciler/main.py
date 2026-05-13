@@ -1,7 +1,7 @@
 """FastAPI app entry point.
 
 Owns the lifespan: DB pool, HTTP client, and the reconciliation scheduler.
-HTTP routes live in :mod:`shopify_app.api.routes`.
+HTTP routes live in :mod:`webhook_reconciler.api.routes`.
 """
 
 import logging
@@ -11,10 +11,10 @@ import httpx
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI
 
-from shopify_app.api.routes import router
-from shopify_app.modules.reconcile import reconcile_once
-from shopify_app.utils import config
-from shopify_app.utils.db import create_pool
+from webhook_reconciler.api.routes import router
+from webhook_reconciler.modules.reconcile import reconcile_once
+from webhook_reconciler.utils import config
+from webhook_reconciler.utils.db import create_pool
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s"
@@ -63,7 +63,7 @@ app.include_router(router)
 
 
 def run() -> None:
-    """Console-script entry point: ``shopify-app`` after ``pip install``."""
+    """Console-script entry point: ``webhook-reconciler`` after ``pip install``."""
     import uvicorn
 
-    uvicorn.run("shopify_app.main:app", host="0.0.0.0", port=3000)
+    uvicorn.run("webhook_reconciler.main:app", host="0.0.0.0", port=3000)

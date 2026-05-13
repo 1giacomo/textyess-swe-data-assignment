@@ -1,6 +1,6 @@
 import asyncpg
 
-from shopify_app.utils import config
+from webhook_reconciler.utils import config
 
 
 async def create_pool() -> asyncpg.Pool:
