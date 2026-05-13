@@ -1,158 +1,143 @@
-# Software Engineer, Data — Home Assignment
+# Shopify Webhook Ingestion + Reconciliation + Live Dashboard
 
-Build a system that ingests Shopify webhook events in real-time, **reconciles them against a backfill REST API**, and powers a live dashboard for a merchant.
+A working system that ingests Shopify order webhooks, reconciles dropped events
+against the Admin REST API, and powers a live merchant dashboard.
 
-The shape of this assignment intentionally mirrors the kind of work a SWE-Data on a CDP-style team actually does: idempotent ingestion, mutation handling, late/missing event recovery, and turning event streams into something a non-technical user can read.
+The original assignment brief is preserved at [`ASSIGNMENT.md`](./ASSIGNMENT.md).
+The design rationale is in [`WRITEUP.md`](./WRITEUP.md).
 
----
+## Stack
 
-## The merchant
+| Layer            | Choice                                                |
+| ---------------- | ----------------------------------------------------- |
+| Webhook receiver | Python 3.11 + FastAPI + asyncpg                       |
+| Storage          | PostgreSQL 16 (raw events JSONB + materialized state) |
+| Reconciliation   | APScheduler (in-process, every 10s)                   |
+| Dashboard        | Grafana 11 (auto-provisioned datasource + dashboard)  |
+| Orchestration    | Docker Compose                                        |
 
-Design for a **high-volume DTC apparel brand**: lots of SKUs (sizes × colors), spiky traffic during drops and sales, frequent order edits and cancellations, returns and refunds, repeat customers.
-
-The dashboard should answer questions a merchant in this space actually asks. You decide which.
-
-## Requirements
-
-You must:
-
-1. **Ingest** Shopify order webhooks (`orders/create`, `orders/updated`).
-2. **Reconcile** against the Shopify Admin REST API. **Webhooks are not reliable** — a fraction of webhook deliveries will silently fail. Your system must detect and recover those orders by polling the REST endpoint the simulator exposes.
-3. **Transform and store** the data in a way that powers a dashboard.
-4. **Render a dashboard** showing meaningful, real-time metrics for the merchant.
-5. **Survive duplicate webhooks and out-of-order delivery** without double-counting or losing data. Shopify retries every webhook until it gets a 2xx, and does not guarantee delivery order.
-6. Everything must work — we will run it.
-
-## What we provide
-
-A TypeScript simulator (see [`simulator/`](./simulator)) that:
-
-- Posts realistic Shopify webhook payloads (`orders/create`, `orders/updated`, plus `products/*`, `customers/*`) to your endpoint.
-- Optionally drops a fraction of webhooks on the floor.
-- Optionally exposes a Shopify-shape **Admin REST API** (`/admin/api/2024-10/orders.json`, paginated, auth-required) backed by the same ground truth — so dropped orders are still recoverable.
-- Replays duplicate deliveries and out-of-order deliveries on demand.
+## Bring it up (one command)
 
 ```bash
-cd simulator
-pnpm install
-pnpm start --url http://localhost:3000/webhooks --backfill-port 3001
+docker compose up -d --build
 ```
 
-See [`simulator/README.md`](./simulator/README.md) for all flags.
+That launches:
 
-## What you deliver
+- **PostgreSQL** on `localhost:5433` (host port; container uses 5432)
+- **FastAPI** on `localhost:3000` — `POST /webhooks` accepts Shopify deliveries
+- **Grafana** on `localhost:3002` — anonymous-admin enabled, dashboard auto-loaded
 
-1. **A working system** — code + clear instructions to run it. Single-command bring-up wins points.
-2. **A live dashboard** showing real-time data from the webhooks.
-3. **A short write-up (~1 page)** in `WRITEUP.md`: what you built, why you made the decisions you made, and what you'd improve with more time.
-
-## What we leave open
-
-- **Tech stack** — use whatever you're most effective with.
-- **Storage** — SQLite, Postgres, Redis, a file… whatever fits your design.
-- **Dashboard** — Metabase, Streamlit, Grafana, custom frontend, whatever you think works best.
-- **Infrastructure** — run it locally, deploy it somewhere, your call. Preference: [LocalStack](https://www.localstack.cloud/localstack-for-aws) (free tier covers most AWS services).
-- **What to show on the dashboard** — we care about *what you choose to show and why*.
-- **Multi-tenancy** — assume a single shop is fine, but be ready to explain how your design would scale to many merchants. The simulator can emit multiple `X-Shopify-Shop-Domain` values via `--shops`.
-
-## Bonus (not required)
-
-- Handle additional webhook types beyond orders (`products/*`, `customers/*`). The simulator emits these via `--topics`.
-- Pipeline observability (lag metrics, dead-letter queue, replay tooling, health checks).
-- Schema evolution: Shopify deprecates fields every release — how would your system survive a missing/renamed field next year?
-- Survive `--workload stress` cleanly (insert/update/cancel batches against your live system).
-
-## Time expectation
-
-Roughly **8–12 hours of focused work**. Don't over-engineer. We'd rather see something that works end-to-end with clear reasoning than a half-finished enterprise architecture.
-
-## How we grade
-
-We will run **exactly** these scenarios against your system. Your `README.md` should explain how to start your system and how to point the simulator at it.
-
-> **Tip:** the simulator just sends HTTP POSTs and serves a small REST mock. It does not need to know anything about your stack. Your job is to make the receiver and reconciliation job robust.
-
-### Scenario 1 — Steady mixed traffic with retries and out-of-order delivery
+Verify everything is alive:
 
 ```bash
-pnpm simulate --rps 10 --duration 120 \
+curl http://localhost:3000/health        # → {"status":"ok"}
+open http://localhost:3002               # Grafana → "DTC Merchant — Live" dashboard
+```
+
+## Run the simulator against it
+
+The simulator lives in [`./simulator/`](./simulator). Install once:
+
+```bash
+cd simulator && pnpm install
+```
+
+Then run any of the assignment scenarios (point all of them at this server's
+webhook URL, `http://localhost:3000/webhooks`):
+
+```bash
+# Scenario 1 — steady mixed traffic with retries + out-of-order
+pnpm simulate --url http://localhost:3000/webhooks \
+  --rps 10 --duration 120 \
   --duplicate-rate 0.1 --out-of-order \
   --update-rate 0.3 --cancel-rate 0.05
-```
 
-We check:
-- **No duplicate counting.** GMV / order count match the simulator's `sent` minus duplicates.
-- **No lost events.** Every unique webhook is reflected in your DB.
-- **Updates apply correctly.** `financial_status`, `fulfillment_status`, `cancelled_at` reflect the latest delivery for each `order_id`.
+# Scenario 2 — burst load
+pnpm simulate --url http://localhost:3000/webhooks \
+  --burst 5000 --concurrency 100
 
-### Scenario 2 — Burst load
+# Scenario 3 — stress workload
+pnpm simulate --url http://localhost:3000/webhooks \
+  --workload stress --inserts 10000 --updates 5000 --cancels 1000 --concurrency 100
 
-```bash
-pnpm simulate --burst 5000 --concurrency 100
-```
-
-We check:
-- **Receiver returns 2xx within reasonable latency** (Shopify retries on >5s).
-- **System doesn't crash, stall, or leak memory.**
-- **Dashboard queries still respond in < 1s** while the burst is in-flight.
-
-### Scenario 3 — Stress workload
-
-```bash
-pnpm simulate --workload stress --inserts 10000 --updates 5000 --cancels 1000 --concurrency 100
-```
-
-We check:
-- All inserts arrive, all updates apply to the right `order_id`, all cancels correctly mark orders as cancelled.
-- Dashboard reflects the final aggregate state (e.g., GMV minus cancellations) within seconds of completion.
-
-### Scenario 4 — Reconciliation against the REST backfill API
-
-```bash
-pnpm simulate --rps 10 --duration 60 \
+# Scenario 4 — reconciliation against the REST backfill API
+pnpm simulate --url http://localhost:3000/webhooks \
+  --rps 10 --duration 60 \
   --drop-rate 0.1 \
   --backfill-port 3001
 ```
 
-10% of webhooks are silently dropped. The dropped orders **only exist** at `http://localhost:3001/admin/api/2024-10/orders.json` (paginated, requires `X-Shopify-Access-Token` header — any non-empty value).
+Watch the dashboard at `http://localhost:3002` while it runs. Reconciliation
+fires every 10 seconds; for Scenario 4 you can watch dropped orders flow into
+the DB in real time as the simulator runs.
 
-We check:
-- After the simulator stops, your reconciliation job has **recovered every dropped order** from the REST API.
-- Final state in your DB matches the REST endpoint's `count.json`.
+## Inspect the database
 
-### Scenario 5 — The write-up
+```bash
+docker exec -it textyess-swe-data-assignment-postgres-1 psql -U postgres -d shopify
 
-We read `WRITEUP.md`. We expect to see:
-- The data model you chose and why (raw events vs. materialized state, idempotency keys, primary key choices).
-- How you handle out-of-order and duplicate delivery.
-- How your reconciliation job decides what to fetch from REST and how often.
-- What you'd build next, and what you'd deliberately *not* build.
+-- core counts
+SELECT COUNT(*) FROM raw_events;
+SELECT COUNT(*) FROM orders;
+SELECT COUNT(*) FROM orders WHERE cancelled_at IS NOT NULL;
+SELECT COUNT(*) FROM orders WHERE source = 'reconciliation';
 
-## What we're evaluating
+-- compare against the REST backfill (Scenario 4)
+SELECT COUNT(*) FROM orders;            -- our state
+-- vs:
+-- curl -H "X-Shopify-Access-Token: any" \
+--      "http://localhost:3001/admin/api/2024-10/orders/count.json"
+```
 
-- **End-to-end working system.** Can you ship something that actually runs against the five scenarios above?
-- **Data thinking.** Modeling, transformation, what to store and how. Idempotency, mutation, time.
-- **Product thinking.** What does a merchant actually care about? Does the dashboard reflect that?
-- **Decision-making.** The write-up matters. We want your reasoning, not just your code.
-- **Code quality.** Clean, readable, well-structured. Not over-abstracted, not a mess.
+## Run the tests
 
-## How to submit
+The Python test suite (idempotency, out-of-order handling, cancellation
+detection, line-item replacement, reconciliation pagination) runs inside the
+app container against the live Postgres:
 
-Pick whichever you prefer:
+```bash
+docker exec -e TEST_DATABASE_URL=postgresql://postgres:postgres@postgres:5432/shopify \
+  textyess-swe-data-assignment-app-1 \
+  python -m pytest tests/ -v
+```
 
-- **Fork this repo** and open a pull request back to it with your solution, **or**
-- **Create your own (private or public) repo** with your solution and share the link with us.
+10 tests, ~0.4s.
 
-Either way, your repo should contain:
+## Tear down
 
-- All your code
-- A top-level `README.md` with setup + run instructions (one-command bring-up wins points)
-- `WRITEUP.md` with your reasoning
+```bash
+docker compose down -v   # -v drops the postgres + grafana volumes
+```
 
-If you create a private repo, share access with the email we used to send you this assignment.
+## Project layout
 
-## Questions
+```
+app/                  FastAPI service (Dockerfile, requirements, source, tests)
+db/init.sql           Schema applied on first Postgres startup
+docker-compose.yml    All three services + healthchecks + volumes
+grafana/provisioning/ Auto-provisioned datasource + dashboard
+simulator/            Provided Shopify webhook simulator (read-only)
+docs/superpowers/     Design spec
+ASSIGNMENT.md         Original assignment brief
+WRITEUP.md            Design rationale (data model, idempotency, reconciliation, trade-offs)
+```
 
-If something is genuinely ambiguous, make a decision, document it in `WRITEUP.md`, and move on. That's part of what we're evaluating.
+## Endpoints
 
-Good luck — we're excited to see what you build.
+| Method | Path               | Purpose                                 |
+| ------ | ------------------ | --------------------------------------- |
+| `GET`  | `/health`          | Liveness + DB connectivity              |
+| `POST` | `/webhooks`        | Shopify webhook ingestion               |
+| `POST` | `/admin/reconcile` | Manual reconciliation trigger (testing) |
+
+## Notes
+
+- **Postgres host port** is `5433` (not the default `5432`) to avoid conflict
+  with a locally-installed Postgres. App-to-DB traffic uses the Docker
+  network and the standard `5432`.
+- **`host.docker.internal`** is mapped via `extra_hosts: host-gateway` so the
+  app container can reach the simulator's backfill server running on the host
+  at port 3001 — works on macOS, Windows, and Linux Docker Desktop.
+- **Grafana anonymous-admin** is enabled for ease of grading; lock it down
+  before any real deployment.

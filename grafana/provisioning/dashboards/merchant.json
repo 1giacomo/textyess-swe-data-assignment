@@ -1,0 +1,254 @@
+{
+  "uid": "merchant-live",
+  "title": "DTC Merchant — Live",
+  "tags": ["shopify", "merchant"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 2,
+  "refresh": "5s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "GMV (active orders)",
+      "type": "stat",
+      "datasource": {"type": "postgres", "uid": "PostgreSQL"},
+      "gridPos": {"h": 6, "w": 6, "x": 0, "y": 0},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "color": {"mode": "fixed", "fixedColor": "#5C53F8"}
+        }
+      },
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "postgres", "uid": "PostgreSQL"},
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COALESCE(SUM(total_price), 0) AS gmv FROM orders WHERE cancelled_at IS NULL"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Orders (active)",
+      "type": "stat",
+      "datasource": {"type": "postgres", "uid": "PostgreSQL"},
+      "gridPos": {"h": 6, "w": 6, "x": 6, "y": 0},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {"mode": "fixed", "fixedColor": "#5C53F8"}
+        }
+      },
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "colorMode": "value",
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "postgres", "uid": "PostgreSQL"},
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(*) AS active_orders FROM orders WHERE cancelled_at IS NULL"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Cancellation rate",
+      "type": "gauge",
+      "datasource": {"type": "postgres", "uid": "PostgreSQL"},
+      "gridPos": {"h": 6, "w": 6, "x": 12, "y": 0},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "color": {"mode": "thresholds"},
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "#22C55E", "value": null},
+              {"color": "#F59E0B", "value": 5},
+              {"color": "#EF4444", "value": 15}
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "postgres", "uid": "PostgreSQL"},
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT ROUND(100.0 * COUNT(*) FILTER (WHERE cancelled_at IS NOT NULL) / NULLIF(COUNT(*), 0), 2) AS cancel_rate FROM orders"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Reconciliation share",
+      "type": "stat",
+      "datasource": {"type": "postgres", "uid": "PostgreSQL"},
+      "gridPos": {"h": 6, "w": 6, "x": 18, "y": 0},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {"mode": "fixed", "fixedColor": "#8B82FB"}
+        }
+      },
+      "options": {
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "colorMode": "value",
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "postgres", "uid": "PostgreSQL"},
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT COUNT(*) FILTER (WHERE source = 'reconciliation') AS reconciled FROM orders"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Orders over time",
+      "type": "timeseries",
+      "datasource": {"type": "postgres", "uid": "PostgreSQL"},
+      "gridPos": {"h": 9, "w": 12, "x": 0, "y": 6},
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "fillOpacity": 20,
+            "showPoints": "never",
+            "gradientMode": "opacity"
+          },
+          "unit": "short",
+          "color": {"mode": "fixed", "fixedColor": "#5C53F8"}
+        }
+      },
+      "options": {
+        "legend": {"showLegend": false},
+        "tooltip": {"mode": "single", "sort": "none"}
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "postgres", "uid": "PostgreSQL"},
+          "format": "time_series",
+          "rawQuery": true,
+          "rawSql": "SELECT date_trunc('minute', created_at) AS time, COUNT(*) AS orders FROM orders WHERE $__timeFilter(created_at) GROUP BY 1 ORDER BY 1"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Top SKUs (active orders)",
+      "type": "barchart",
+      "datasource": {"type": "postgres", "uid": "PostgreSQL"},
+      "gridPos": {"h": 9, "w": 12, "x": 12, "y": 6},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": {"mode": "fixed", "fixedColor": "#5C53F8"}
+        }
+      },
+      "options": {
+        "orientation": "horizontal",
+        "xTickLabelRotation": 0,
+        "showValue": "auto",
+        "stacking": "none",
+        "groupWidth": 0.7,
+        "barWidth": 0.97,
+        "legend": {"showLegend": false}
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "postgres", "uid": "PostgreSQL"},
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT oi.sku, SUM(oi.quantity) AS units FROM order_items oi JOIN orders o ON o.order_id = oi.order_id WHERE o.cancelled_at IS NULL AND oi.sku IS NOT NULL GROUP BY oi.sku ORDER BY units DESC LIMIT 10"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Live order map (shipping destinations)",
+      "type": "geomap",
+      "datasource": {"type": "postgres", "uid": "PostgreSQL"},
+      "gridPos": {"h": 12, "w": 24, "x": 0, "y": 15},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "fixed", "fixedColor": "#5C53F8"},
+          "custom": {
+            "hideFrom": {"legend": false, "tooltip": false, "viz": false}
+          }
+        }
+      },
+      "options": {
+        "view": {"id": "fit", "lat": 39, "lon": -98, "zoom": 3},
+        "controls": {
+          "showZoom": true,
+          "mouseWheelZoom": true,
+          "showAttribution": true,
+          "showScale": false,
+          "showMeasure": false,
+          "showDebug": false
+        },
+        "basemap": {"type": "default", "name": "Basemap", "config": {}},
+        "layers": [
+          {
+            "name": "Active orders",
+            "type": "markers",
+            "location": {"mode": "auto"},
+            "tooltip": true,
+            "config": {
+              "style": {
+                "size": {"fixed": 5, "min": 4, "max": 18, "field": "orders"},
+                "color": {"fixed": "#5C53F8"},
+                "opacity": 0.7,
+                "symbol": {"fixed": "img/icons/marker/circle.svg", "mode": "fixed"},
+                "textConfig": {"fontSize": 12, "textAlign": "center", "textBaseline": "middle", "offsetX": 0, "offsetY": 0}
+              },
+              "showLegend": true
+            }
+          }
+        ],
+        "tooltip": {"mode": "details"}
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {"type": "postgres", "uid": "PostgreSQL"},
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "WITH order_locations AS (SELECT DISTINCT ON ((payload->>'id')::bigint) (payload->>'id')::bigint AS order_id, ((payload->'shipping_address'->>'latitude'))::float AS lat, ((payload->'shipping_address'->>'longitude'))::float AS lng FROM raw_events WHERE topic LIKE 'orders/%' AND payload->'shipping_address'->>'latitude' IS NOT NULL ORDER BY (payload->>'id')::bigint, received_at ASC) SELECT ol.lat AS latitude, ol.lng AS longitude, COUNT(*) AS orders, SUM(o.total_price)::float AS gmv FROM orders o JOIN order_locations ol ON ol.order_id = o.order_id WHERE o.cancelled_at IS NULL GROUP BY ol.lat, ol.lng"
+        }
+      ]
+    }
+  ]
+}
