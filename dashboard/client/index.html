@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DTC Merchant — Live</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar">
+        <div class="sidebar__logo">text yess</div>
+
+        <nav class="sidebar__nav">
+          <a class="nav-item nav-item--active" href="#">
+            <span class="nav-item__icon" aria-hidden="true">⌂</span>
+            <span class="nav-item__label">Analytics</span>
+          </a>
+
+          <div class="sidebar__coming-soon">
+            <span class="sidebar__coming-soon-dot" aria-hidden="true">✦</span>
+            <span>Other features coming soon</span>
+          </div>
+        </nav>
+      </aside>
+
+      <main class="canvas">
+        <header class="canvas__header">
+          <h1 class="canvas__title">DTC Merchant — Live</h1>
+          <div class="canvas__meta">
+            <span id="status-pill" class="pill pill--ok">connected</span>
+            <span class="hint">refresh: 5s · pauses when tab hidden</span>
+          </div>
+        </header>
+
+        <section class="section section--merchant">
+          <div class="panel panel--stat" data-panel="gmv">
+            <div class="panel-title">GMV (last 24h)</div>
+            <div class="panel-body" id="chart-gmv"></div>
+          </div>
+          <div class="panel panel--stat" data-panel="discount">
+            <div class="panel-title">Discount impact (24h)</div>
+            <div class="panel-body" id="chart-discount"></div>
+          </div>
+          <div class="panel panel--chart" data-panel="payment">
+            <div class="panel-title">Payment status</div>
+            <div class="panel-body" id="chart-payment"></div>
+          </div>
+          <div class="panel panel--chart" data-panel="cancel">
+            <div class="panel-title">Cancellations by reason</div>
+            <div class="panel-body" id="chart-cancel"></div>
+          </div>
+
+          <div class="panel panel--wide" data-panel="orders-over-time">
+            <div class="panel-title">Orders over time (1h)</div>
+            <div class="panel-body" id="chart-orders-over-time"></div>
+          </div>
+          <div class="panel panel--wide" data-panel="top-skus">
+            <div class="panel-title">Top SKUs by revenue</div>
+            <div class="panel-body" id="chart-top-skus"></div>
+          </div>
+
+          <div class="panel panel--full" data-panel="geomap">
+            <div class="panel-title">Order geomap (active orders)</div>
+            <div class="panel-body" id="chart-geomap"></div>
+          </div>
+        </section>
+
+        <section class="section section--ops">
+          <div class="section-header">Operations</div>
+          <div class="panel panel--stat" data-panel="lag">
+            <div class="panel-title">Webhook ingest lag</div>
+            <div class="panel-body" id="chart-lag"></div>
+          </div>
+          <div class="panel panel--wide" data-panel="backfill">
+            <div class="panel-title">Reconciliation backfill (1h)</div>
+            <div class="panel-body" id="chart-backfill"></div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="/main.ts"></script>
+  </body>
+</html>
